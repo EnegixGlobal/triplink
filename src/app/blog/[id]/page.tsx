@@ -30,11 +30,16 @@ async function getBlogPost(slug: string): Promise<BlogPost | null> {
     await connectDb();
     
     // Try to find by slug first, then by ObjectId for backward compatibility
-    let blog = await Blog.findOne({ slug: slug }).lean();
+    let blog: any = await Blog.findOne({ slug: slug }).lean();
 
     if (!blog) {
       // If not found by slug, try by ObjectId
-      blog = await Blog.findById(slug).lean();
+      try {
+        blog = await Blog.findById(slug).lean();
+      } catch {
+        // Invalid ObjectId format, return null
+        return null;
+      }
     }
 
     if (!blog) {
@@ -44,17 +49,17 @@ async function getBlogPost(slug: string): Promise<BlogPost | null> {
     // Convert MongoDB document to plain object
     return {
       _id: blog._id.toString(),
-      title: blog.title,
-      slug: blog.slug,
-      excerpt: blog.excerpt,
-      content: blog.content,
-      featuredImage: blog.featuredImage,
-      category: blog.category,
+      title: blog.title || '',
+      slug: blog.slug || '',
+      excerpt: blog.excerpt || '',
+      content: blog.content || '',
+      featuredImage: blog.featuredImage || '',
+      category: blog.category || '',
       tags: blog.tags || [],
-      isPublished: blog.isPublished,
+      isPublished: blog.isPublished || false,
       views: blog.views || 0,
-      createdAt: blog.createdAt.toISOString(),
-      updatedAt: blog.updatedAt.toISOString(),
+      createdAt: blog.createdAt ? blog.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: blog.updatedAt ? blog.updatedAt.toISOString() : new Date().toISOString(),
     };
   } catch (error) {
     console.error('Error fetching blog post from database:', error);
