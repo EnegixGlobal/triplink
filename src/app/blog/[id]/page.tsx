@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Clock, Calendar, User, Share2, Eye, Heart, Bookmark } from "lucide-react";
 import { notFound } from "next/navigation";
+import connectDb from "@/db/connectDb";
+import Blog from "@/models/Blog";
 
 interface BlogPost {
   _id: string;
@@ -24,23 +26,38 @@ interface BlogPost {
 // Fetch blog data from backend
 async function getBlogPost(slug: string): Promise<BlogPost | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/blog/${slug}`, {
-      cache: 'no-store' // Ensure fresh data
-    });
+    // Direct database query approach (more reliable for server components)
+    await connectDb();
+    
+    // Try to find by slug first, then by ObjectId for backward compatibility
+    let blog = await Blog.findOne({ slug: slug }).lean();
 
-    if (!response.ok) {
+    if (!blog) {
+      // If not found by slug, try by ObjectId
+      blog = await Blog.findById(slug).lean();
+    }
+
+    if (!blog) {
       return null;
     }
 
-    const result = await response.json();
-
-    if (result.success && result.data) {
-      return result.data;
-    }
-
-    return null;
+    // Convert MongoDB document to plain object
+    return {
+      _id: blog._id.toString(),
+      title: blog.title,
+      slug: blog.slug,
+      excerpt: blog.excerpt,
+      content: blog.content,
+      featuredImage: blog.featuredImage,
+      category: blog.category,
+      tags: blog.tags || [],
+      isPublished: blog.isPublished,
+      views: blog.views || 0,
+      createdAt: blog.createdAt.toISOString(),
+      updatedAt: blog.updatedAt.toISOString(),
+    };
   } catch (error) {
-    console.error('Error fetching blog post:', error);
+    console.error('Error fetching blog post from database:', error);
     return null;
   }
 }
